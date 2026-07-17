@@ -383,12 +383,13 @@
     });
     var pct = headline.target ? Math.max(0, Math.min(100, (headline.current / headline.target) * 100)) : 0;
     document.getElementById('progressPct').textContent = pct.toFixed(1) + '% OF TARGET';
-    document.getElementById('paymentChip').textContent = '$' + fmt(headline.due || 0) + ' DUE';
+    document.getElementById('paymentChip').textContent = headline.dueLabel || ('$' + fmt(headline.due || 0) + ' DUE');
     setTimeout(function(){ document.getElementById('progressFill').style.width = pct.toFixed(1) + '%'; }, 400);
 
     var tickerTrack = document.getElementById('tickerTrack');
     var tickerParts = [];
-    (DATA.sponsors || []).forEach(function(s){ tickerParts.push('SPONSOR · <span>' + s + '</span>'); });
+    var tickerLabel = DATA.tickerLabel || 'SPONSOR';
+    (DATA.sponsors || []).forEach(function(s){ tickerParts.push(tickerLabel + ' · <span>' + s + '</span>'); });
     if (DATA.closer) tickerParts.push(DATA.closer);
     if (DATA.generated) tickerParts.push('LAST SYNC ' + DATA.generated);
     var tickerHTML = tickerParts.join('&nbsp;&nbsp;&nbsp;•&nbsp;&nbsp;&nbsp;');
@@ -436,7 +437,7 @@
       logLines.push(f.label + ' :: ' + (f.unit||'') + fmt(f.value) + ' tracked (' + p + '% of target)');
     });
     (DATA.sponsors || []).forEach(function(s){
-      logLines.push('sponsor ledger :: ' + s + ' account reviewed');
+      logLines.push((DATA.tickerLabel || 'sponsor ledger').toLowerCase() + ' :: ' + s);
     });
     (DATA.priorities || []).forEach(function(p){
       logLines.push('priority queued :: ' + p);

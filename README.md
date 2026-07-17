@@ -28,6 +28,7 @@ answers aloud in a British butler voice.
 ## Quick start
 
 ```
+copy jarvis_data.example.js jarvis_data.js   # then edit with your own data
 set FISH_API_KEY=your_key_here
 python speak.py      # generate jarvis_brief.mp3 (the BRIEF ME narration)
 python server.py     # serve the dashboard + /ask endpoint
@@ -45,8 +46,10 @@ dashboard.html ── mic/speech ──> POST /ask ──> server.py
 jarvis_data.js ── feeds the HUD, the brief (speak.py) and the persona
 ```
 
-- `jarvis_data.js` — single data feed. Edit it (or generate it) to repoint the
-  dashboard at real numbers; the brief and persona pick it up automatically.
+- `jarvis_data.js` — single data feed (copy of `jarvis_data.example.js`,
+  git-ignored since it may hold personal Gmail/Calendar details). Edit it (or
+  generate it) to repoint the dashboard at real numbers; the brief and persona
+  pick it up automatically.
 - `speak.py` — composes the brief text from the data and synthesizes the MP3.
 - `server.py` — stdlib HTTP server: serves statics, transcribes audio (fallback
   path, Fish ASR), runs `claude -p`, returns the reply plus base64 MP3.

@@ -1,7 +1,11 @@
-// J.A.R.V.I.S. command center — data feed.
-// Swap these values (or fetch them into this shape) to repoint the dashboard at real data.
+﻿// J.A.R.V.I.S. command center — data feed (fictional example).
+// Copy this file to jarvis_data.js, then swap these values (or fetch them
+// into this shape) to repoint the dashboard at real data. jarvis_data.js is
+// git-ignored so your real data never ends up in the repo.
+// Optional extras: `tickerLabel` renames the ticker prefix (default "SPONSOR");
+// `headline.dueLabel` overrides the amber chip text (default "$<due> DUE").
 window.JARVIS_DATA = {
-  greeting: "Good evening, Henry.",
+  greeting: "Good evening, sir.",
   generated: "16 JUL 2026 · 23:29:43",
 
   connectors: [

@@ -1,3 +1,5 @@
 .env
 __pycache__/
 jarvis_brief.mp3
+# live data feed — may contain personal Gmail/Calendar details
+jarvis_data.js

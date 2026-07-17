@@ -59,7 +59,11 @@ def compose_brief(d):
     parts = [d.get("greeting", "Good day.")]
 
     h = d.get("headline") or {}
-    if h.get("target"):
+    if h.get("dueLabel"):
+        # non-monetary objective (e.g. a deadline)
+        parts.append("%s — %s." % (h.get("label", "Primary objective").title(),
+                                   h["dueLabel"].lower()))
+    elif h.get("target"):
         pct = h.get("current", 0) / h["target"] * 100
         parts.append(
             "Revenue stands at %s dollars against the %s dollar goal — "
@@ -72,6 +76,9 @@ def compose_brief(d):
         parts.append("The funnel drew a reach of %s, converting to %s sign-ups."
                      % ("{:,}".format(funnel["REACH"]["value"]),
                         "{:,}".format(funnel["SIGNUPS"]["value"])))
+    if "UNREAD MAIL" in funnel:
+        parts.append("%s unread emails sit in the inbox — the bulk of them "
+                     "newsletters." % "{:,}".format(funnel["UNREAD MAIL"]["value"]))
 
     offline = [c["name"].title() for c in d.get("connectors", [])
                if c.get("status") != "online"]

@@ -140,6 +140,11 @@ def ask_claude(question):
 
 class Handler(SimpleHTTPRequestHandler):
 
+    def end_headers(self):
+        # live dashboard data — never let the browser serve stale files
+        self.send_header("Cache-Control", "no-store")
+        super().end_headers()
+
     def do_POST(self):
         if self.path.rstrip("/") != "/ask":
             self.send_error(404)
