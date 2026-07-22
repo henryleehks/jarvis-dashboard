@@ -35,4 +35,4 @@ Things that follow from this shape:
 
 ## Security constraint
 
-`ALLOWED_TOOLS` in `server.py` is the whitelist of MCP connector tools `claude -p` may call without a permission prompt. It is **read-only on purpose** (search/get/list only — nothing that sends, creates, edits, or deletes), because anything on it can be triggered by a voice command. Do not add write-capable tools unless the user explicitly asks and understands that trade-off. Similarly, the Fish API key comes only from the `FISH_API_KEY` env var — never hardcode it.
+`ALLOWED_TOOLS` in `server.py` is the whitelist of tools `claude -p` may call without a permission prompt — the MCP connectors plus Claude Code's built-in `WebSearch`/`WebFetch`. It is **read-only on purpose** (search/get/list/fetch only — nothing that sends, creates, edits, or deletes), because anything on it can be triggered by a voice command. Do not add write-capable tools unless the user explicitly asks and understands that trade-off. Similarly, the Fish API key comes only from the `FISH_API_KEY` env var — never hardcode it.
