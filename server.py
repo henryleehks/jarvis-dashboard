@@ -44,7 +44,14 @@ CLAUDE_MODEL = os.environ.get("JARVIS_MODEL", "claude-opus-4-8").strip(" \t\r\n\
 # Read-only on purpose: nothing here can send mail, change events, or edit
 # pages. Add write tools (create_event, create_draft, ...) only if you accept
 # that a voice command can then modify your accounts.
+#
+# WebSearch/WebFetch are Claude Code's own built-in tools (not MCP connectors),
+# so they need no separate setup — they let JARVIS answer "what's the latest..."
+# style questions. Both are read-only: they retrieve public web content and
+# cannot change anything on your accounts.
 ALLOWED_TOOLS = [
+    "WebSearch",
+    "WebFetch",
     "mcp__claude_ai_Gmail__search_threads",
     "mcp__claude_ai_Gmail__get_message",
     "mcp__claude_ai_Gmail__get_thread",
@@ -82,6 +89,9 @@ def load_persona():
         "You have read-only access to Henry's Gmail, Google Calendar, Google "
         "Drive and Notion via your tools; consult them when the question calls "
         "for it, and summarise rather than reading entries verbatim. "
+        "You can also search the web (WebSearch) and read web pages (WebFetch) "
+        "for current information — use them when the question needs up-to-date "
+        "facts you don't already know, and give a concise spoken answer. "
         "Current dashboard state follows; use it when relevant:\n\n" + data
     )
 
