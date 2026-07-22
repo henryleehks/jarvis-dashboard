@@ -36,6 +36,10 @@ FISH_MODEL = "s2.1-pro-free"
 VOICE_ID = "36b6f66cfecf466caac7fcba1f8b59c8"  # British voice
 FISH_KEY = os.environ.get("FISH_API_KEY", "").strip(" \t\r\n\"'")
 
+# Model the JARVIS brain runs on. Pinned so JARVIS uses Opus regardless of the
+# `claude` CLI's global default. Override with the JARVIS_MODEL env var if needed.
+CLAUDE_MODEL = os.environ.get("JARVIS_MODEL", "claude-opus-4-8").strip(" \t\r\n\"'")
+
 # Connector tools `claude -p` may use without an interactive permission prompt.
 # Read-only on purpose: nothing here can send mail, change events, or edit
 # pages. Add write tools (create_event, create_draft, ...) only if you accept
@@ -125,6 +129,7 @@ def ask_claude(question):
     if not exe:
         raise RuntimeError("claude CLI not found on PATH")
     cmd = [exe, "-p", "--output-format", "text",
+           "--model", CLAUDE_MODEL,
            "--allowedTools", ",".join(ALLOWED_TOOLS),
            "--append-system-prompt", PERSONA]
     if exe.lower().endswith((".cmd", ".bat")):

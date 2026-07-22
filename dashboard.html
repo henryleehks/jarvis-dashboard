@@ -216,6 +216,20 @@
   }
   .ask-btn.replying .ask-dot{ background:#04141a; box-shadow:none; animation:none; }
 
+  .wake-btn{
+    pointer-events:auto; cursor:pointer; flex:0 0 auto;
+    font-family: var(--font-display); font-size:11.5px; letter-spacing:2.5px;
+    color: var(--cyan-bright); background: rgba(110,240,255,0.06);
+    border:1px solid rgba(140,245,255,0.55); padding:10px 20px;
+    display:flex; align-items:center; gap:10px;
+    box-shadow: 0 0 10px rgba(110,240,255,0.25), inset 0 0 10px rgba(110,240,255,0.08);
+    transition: all .25s ease;
+  }
+  .wake-btn:hover{ background: rgba(110,240,255,0.14); box-shadow: 0 0 18px rgba(110,240,255,0.5); }
+  .wake-btn .wake-dot{ width:8px; height:8px; border-radius:50%; background:rgba(140,245,255,0.5); box-shadow:none; }
+  .wake-btn.armed{ color:#7dffb0; border-color:rgba(90,255,150,0.7); background:rgba(60,255,140,0.07); box-shadow:0 0 16px rgba(60,255,140,0.4); }
+  .wake-btn.armed .wake-dot{ background:#5affa0; box-shadow:0 0 10px #5affa0; animation: blink 1.6s steps(1) infinite; }
+
   .ticker-wrap{ flex:1 1 auto; overflow:hidden; height:100%; display:flex; align-items:center; position:relative; }
   .ticker-wrap::before, .ticker-wrap::after{
     content:''; position:absolute; top:0; bottom:0; width:36px; z-index:2;
@@ -309,6 +323,7 @@
     <div class="control-bar">
       <button class="brief-btn" id="briefBtn"><span class="brief-dot"></span><span id="briefBtnLabel">BRIEF ME</span></button>
       <button class="ask-btn" id="askBtn"><span class="ask-dot"></span><span id="askBtnLabel">ASK JARVIS</span></button>
+      <button class="wake-btn" id="wakeBtn"><span class="wake-dot"></span><span id="wakeBtnLabel">WAKE WORD</span></button>
       <div class="ticker-wrap"><div class="ticker-track" id="tickerTrack"></div></div>
       <button class="handle-first-btn" id="handleFirstBtn">WHAT SHOULD I HANDLE FIRST</button>
     </div>
@@ -526,17 +541,31 @@
     // fallback for browsers without it (server-side ASR, billed by Fish Audio).
     var Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     var recognition = null;
+    // Wake word ("Jarvis"): a continuous background recognizer that hands off to
+    // the request capture below the moment it hears the name. Off until armed.
+    var wakeBtn = document.getElementById('wakeBtn');
+    var wakeBtnLabel = document.getElementById('wakeBtnLabel');
+    var wakeRecognition = null, wakeEnabled = false, wakeResumeTimer = null, chirpCtx = null;
+    var WAKE_RE = /\b(?:hey\s+|ok\s+)?(?:jarvis|jarviss|jervis|javis)\b/i;
 
     function setAsk(state, label){
       askState = state;
       askBtn.classList.remove('listening','thinking','replying');
       if (state !== 'idle') askBtn.classList.add(state === 'speaking' ? 'replying' : state);
       askBtnLabel.textContent = label;
+      // Back to idle -> resume listening for the wake word. This one hook covers
+      // every path: manual ask, wake-triggered ask, errors, and after JARVIS speaks.
+      if (state === 'idle' && wakeEnabled) {
+        if (wakeResumeTimer) clearTimeout(wakeResumeTimer);
+        wakeResumeTimer = setTimeout(function(){
+          if (askState === 'idle' && wakeEnabled) startWake();
+        }, 500);
+      }
     }
 
     askBtn.addEventListener('click', function(){
       if (askState === 'idle') {
-        if (Recognition) startListening(); else startRecording();
+        if (Recognition) armRequestCapture(); else startRecording();
       } else if (askState === 'listening') {
         if (recognition) recognition.stop();
         else if (mediaRecorder) mediaRecorder.stop();
@@ -563,7 +592,13 @@
         recognition = null;
         if (!got && askState === 'listening') setAsk('idle', 'ASK JARVIS');
       };
-      recognition.start();
+      try { recognition.start(); }
+      catch (err) {
+        appendLog('ASK :: mic busy — try again');
+        recognition = null;
+        setAsk('idle', 'ASK JARVIS');
+        return;
+      }
       setAsk('listening', 'LISTENING — SPEAK NOW');
     }
 
@@ -588,6 +623,94 @@
         appendLog('ASK :: microphone access denied');
       });
     }
+
+    /* ---- Wake word: say "Jarvis" to start a request hands-free ---- */
+    function setWakeUI(on){
+      wakeBtn.classList.toggle('armed', on);
+      wakeBtnLabel.textContent = on ? 'WAKE — ARMED' : 'WAKE WORD';
+    }
+
+    function startWake(){
+      if (!wakeEnabled || wakeRecognition || askState !== 'idle') return;
+      var r = new Recognition();
+      r.continuous = true;
+      r.interimResults = true;
+      r.maxAlternatives = 1;
+      wakeRecognition = r;
+      r.onresult = function(e){
+        if (r !== wakeRecognition) return;
+        var txt = '';
+        for (var i = e.resultIndex; i < e.results.length; i++) txt += e.results[i][0].transcript;
+        if (WAKE_RE.test(txt)) wakeHeard();
+      };
+      r.onerror = function(e){
+        // 'no-speech' / 'aborted' are normal — onend restarts us. Only bail on denial.
+        if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+          wakeEnabled = false; setWakeUI(false);
+          appendLog('WAKE :: microphone permission denied');
+        }
+      };
+      r.onend = function(){
+        if (wakeRecognition === r) wakeRecognition = null;
+        // Chrome ends the session after silence; keep it alive while armed and idle.
+        if (wakeEnabled && askState === 'idle') startWake();
+      };
+      try { r.start(); }
+      catch (err) { wakeRecognition = null; }
+    }
+
+    // Stop the wake recognizer, then begin request capture once the mic is released.
+    function armRequestCapture(){
+      var r = wakeRecognition;
+      wakeRecognition = null;
+      if (r) {
+        r.onresult = null; r.onerror = null;
+        r.onend = function(){ startListening(); };
+        try { r.stop(); } catch (err) { startListening(); }
+      } else {
+        startListening();
+      }
+    }
+
+    function wakeHeard(){
+      if (askState !== 'idle' || !wakeRecognition) return;
+      appendLog('JARVIS :: yes, sir?');
+      cueChirp();
+      armRequestCapture();
+    }
+
+    // Short ascending chirp so you know JARVIS heard his name.
+    function cueChirp(){
+      try {
+        chirpCtx = chirpCtx || new (window.AudioContext || window.webkitAudioContext)();
+        if (chirpCtx.state === 'suspended') chirpCtx.resume();
+        var t = chirpCtx.currentTime;
+        var o = chirpCtx.createOscillator(), g = chirpCtx.createGain();
+        o.type = 'sine';
+        o.frequency.setValueAtTime(660, t);
+        o.frequency.exponentialRampToValueAtTime(990, t + 0.12);
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(0.18, t + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+        o.connect(g); g.connect(chirpCtx.destination);
+        o.start(t); o.stop(t + 0.2);
+      } catch (err) {}
+    }
+
+    wakeBtn.addEventListener('click', function(){
+      if (!Recognition) { appendLog('WAKE :: not supported in this browser'); return; }
+      if (wakeEnabled) {
+        wakeEnabled = false; setWakeUI(false);
+        var r = wakeRecognition; wakeRecognition = null;
+        if (r) { r.onend = null; r.onresult = null; r.onerror = null; try { r.stop(); } catch (err) {} }
+        appendLog('WAKE :: disarmed');
+      } else {
+        wakeEnabled = true; setWakeUI(true);
+        try { chirpCtx = chirpCtx || new (window.AudioContext || window.webkitAudioContext)(); if (chirpCtx.state === 'suspended') chirpCtx.resume(); } catch (err) {}
+        appendLog('WAKE :: armed — say "Jarvis"');
+        startWake();
+      }
+    });
 
     function sendText(text){
       postAsk(JSON.stringify({ text: text }), 'application/json');
