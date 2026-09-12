@@ -230,7 +230,36 @@
   .wake-btn.armed{ color:#7dffb0; border-color:rgba(90,255,150,0.7); background:rgba(60,255,140,0.07); box-shadow:0 0 16px rgba(60,255,140,0.4); }
   .wake-btn.armed .wake-dot{ background:#5affa0; box-shadow:0 0 10px #5affa0; animation: blink 1.6s steps(1) infinite; }
 
-  .ticker-wrap{ flex:1 1 auto; overflow:hidden; height:100%; display:flex; align-items:center; position:relative; }
+  .sync-btn{
+    pointer-events:auto; cursor:pointer; flex:0 0 auto;
+    font-family: var(--font-display); font-size:11.5px; letter-spacing:2.5px;
+    color: var(--cyan-bright); background: rgba(110,240,255,0.06);
+    border:1px solid rgba(140,245,255,0.55); padding:10px 20px;
+    display:flex; align-items:center; gap:10px;
+    box-shadow: 0 0 10px rgba(110,240,255,0.25), inset 0 0 10px rgba(110,240,255,0.08);
+    transition: all .25s ease;
+  }
+  .sync-btn:hover{ background: rgba(110,240,255,0.14); box-shadow: 0 0 18px rgba(110,240,255,0.5); }
+  .sync-btn .sync-dot{ width:8px; height:8px; border-radius:50%; background:var(--cyan-bright); box-shadow:0 0 8px var(--cyan-bright); }
+  .sync-btn.syncing{ color:var(--amber); border-color:var(--amber-dim); box-shadow:0 0 14px rgba(255,178,56,0.35); cursor:progress; }
+  .sync-btn.syncing .sync-dot{ background:var(--amber); box-shadow:0 0 8px var(--amber); animation: blink 0.5s steps(1) infinite; }
+  .sync-btn.failed{ color:#ff8896; border-color:rgba(255,110,130,0.7); box-shadow:0 0 18px rgba(255,90,110,0.45); }
+  .sync-btn.failed .sync-dot{ background:#ff5a6e; box-shadow:0 0 10px #ff5a6e; }
+
+  .ticker-wrap{ flex:1 1 auto; min-width:150px; overflow:hidden; height:100%; display:flex; align-items:center; position:relative; }
+  /* Every button is flex:0 0 auto, so the ticker is the only thing that can
+     shrink — and below ~1200px four buttons plus the long HANDLE FIRST label
+     shrink it to nothing. Tighten the spacing instead. */
+  @media (max-width: 1200px){
+    .control-bar{ gap:12px; padding:0 16px; }
+    .brief-btn, .ask-btn, .wake-btn, .sync-btn{ padding:10px 12px; letter-spacing:1.5px; }
+    .handle-first-btn{ padding:10px 10px; letter-spacing:1px; }
+  }
+  /* Narrower still, the buttons alone fill the bar. They are the functional
+     part; the ticker is ambient, so it yields rather than pushing them off. */
+  @media (max-width: 1020px){
+    .ticker-wrap{ display:none; }
+  }
   .ticker-wrap::before, .ticker-wrap::after{
     content:''; position:absolute; top:0; bottom:0; width:36px; z-index:2;
   }
@@ -324,6 +353,7 @@
       <button class="brief-btn" id="briefBtn"><span class="brief-dot"></span><span id="briefBtnLabel">BRIEF ME</span></button>
       <button class="ask-btn" id="askBtn"><span class="ask-dot"></span><span id="askBtnLabel">ASK JARVIS</span></button>
       <button class="wake-btn" id="wakeBtn"><span class="wake-dot"></span><span id="wakeBtnLabel">WAKE WORD</span></button>
+      <button class="sync-btn" id="syncBtn"><span class="sync-dot"></span><span id="syncBtnLabel">REFRESH</span></button>
       <div class="ticker-wrap"><div class="ticker-track" id="tickerTrack"></div></div>
       <button class="handle-first-btn" id="handleFirstBtn">WHAT SHOULD I HANDLE FIRST</button>
     </div>
@@ -529,6 +559,49 @@
       if (fallbackTimer) return;
       fallbackTimer = setTimeout(endSpeaking, 6500);
     }
+
+    /* ============================================================
+       REFRESH — /refresh rewrites jarvis_data.js, then we reload
+    ============================================================ */
+    var syncBtn = document.getElementById('syncBtn');
+    var syncBtnLabel = document.getElementById('syncBtnLabel');
+    var syncing = false;
+
+    syncBtn.addEventListener('click', function(){
+      if (syncing) return;
+      syncing = true;
+      syncBtn.classList.remove('failed');
+      syncBtn.classList.add('syncing');
+      syncBtnLabel.textContent = 'SYNCING…';
+      appendLog('refresh :: reading mail and calendar — give it a minute');
+      fetch('/refresh', { method: 'POST' })
+        .then(function(r){
+          return r.json().then(function(res){
+            if (!r.ok || res.error) throw new Error(res.error || ('HTTP ' + r.status));
+            return res;
+          });
+        })
+        .then(function(res){
+          syncBtnLabel.textContent = 'SYNCED';
+          appendLog('refresh :: feed rewritten :: ' + (res.generated || 'now'));
+          if (res.brief) appendLog('refresh :: briefing re-recorded');
+          // The render pass above appends its nodes once, so a reload is the
+          // honest way to show the new feed. Cache-Control: no-store on the
+          // server means the reload really does fetch the rewritten file.
+          setTimeout(function(){ location.reload(); }, 1200);
+        })
+        .catch(function(err){
+          syncing = false;
+          syncBtn.classList.remove('syncing');
+          syncBtn.classList.add('failed');
+          syncBtnLabel.textContent = 'SYNC FAILED';
+          appendLog('refresh :: failed — ' + err.message);
+          setTimeout(function(){
+            syncBtn.classList.remove('failed');
+            syncBtnLabel.textContent = 'REFRESH';
+          }, 6000);
+        });
+    });
 
     /* ============================================================
        ASK JARVIS — mic -> /ask -> spoken reply

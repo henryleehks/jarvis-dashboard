@@ -3,3 +3,6 @@ __pycache__/
 jarvis_brief.mp3
 # live data feed — may contain personal Gmail/Calendar details
 jarvis_data.js
+# previous feed + staging file, written by POST /refresh
+jarvis_data.js.bak
+jarvis_data.js.tmp
