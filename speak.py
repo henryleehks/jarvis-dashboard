@@ -54,6 +54,38 @@ def load_data():
         return None
 
 
+# Short words the acronym rule below would otherwise mistake for initialisms
+# and leave shouting ("DUE IN 3 DAYS" -> "DUE IN 3 days").
+COMMON_SHORT = (
+    set("a an and at by day days due for in is it new of on or out the to up vs".split())
+    | set("mon tue wed thu fri sat sun".split())
+    | set("jan feb mar apr may jun jul aug sep oct nov dec".split())
+)
+
+
+def spoken_case(text, lower=False):
+    """Recase a HUD label for speech without flattening its acronyms.
+
+    Labels are uppercase for the HUD ("PRIMARY OBJECTIVE · RWE ASSESSMENT
+    CENTRE", "AC IN 24 DAYS"), and a blanket .title() or .lower() turns RWE
+    into "Rwe" and AC into "ac" — which the voice reads as words instead of
+    spelling out. Tokens of three letters or fewer, and vowel-less ones, are
+    left uppercase, since those are the ones that are acronyms; anything
+    longer is treated as a real word and cased normally (`lower` picks which
+    way). Four-letter acronyms containing a vowel — HDMI, ASAP — are the known
+    blind spot, and rare in these labels. Matters more now that labels come
+    from /refresh rather than being written by hand.
+    """
+    out = []
+    for word in text.split():
+        letters = "".join(c for c in word if c.isalpha())
+        acronym = (letters and letters.lower() not in COMMON_SHORT
+                   and (len(letters) <= 3
+                        or not set(letters.lower()) & set("aeiou")))
+        out.append(word if acronym else (word.lower() if lower else word.title()))
+    return " ".join(out)
+
+
 def compose_brief(d):
     """Turn JARVIS_DATA into the spoken morning brief."""
     parts = [d.get("greeting", "Good day.")]
@@ -61,8 +93,8 @@ def compose_brief(d):
     h = d.get("headline") or {}
     if h.get("dueLabel"):
         # non-monetary objective (e.g. a deadline)
-        parts.append("%s — %s." % (h.get("label", "Primary objective").title(),
-                                   h["dueLabel"].lower()))
+        parts.append("%s — %s." % (spoken_case(h.get("label", "Primary objective")),
+                                   spoken_case(h["dueLabel"], lower=True)))
     elif h.get("target"):
         pct = h.get("current", 0) / h["target"] * 100
         parts.append(
@@ -80,7 +112,7 @@ def compose_brief(d):
         parts.append("%s unread emails sit in the inbox — the bulk of them "
                      "newsletters." % "{:,}".format(funnel["UNREAD MAIL"]["value"]))
 
-    offline = [c["name"].title() for c in d.get("connectors", [])
+    offline = [spoken_case(c["name"]) for c in d.get("connectors", [])
                if c.get("status") != "online"]
     if offline:
         parts.append("Note: the %s connector%s offline."
